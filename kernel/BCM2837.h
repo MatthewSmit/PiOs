@@ -2,25 +2,21 @@
 
 #include "ktypes.h"
 
-// For RPI 2/3
-constexpr auto MMIO_BASE = 0x3F000000;
+extern uint64_t mmioBase;
 
-// For RPI 4
-//constexpr auto MMIO_BASE = 0xFE000000;
-
-constexpr auto TIMER_BASE = MMIO_BASE + 0x00003000;
-constexpr auto DMA_BASE = MMIO_BASE + 0x00007000;
-constexpr auto INTERRUPT_BASE = MMIO_BASE + 0x0000B000;
-constexpr auto MAILBOX_BASE = MMIO_BASE + 0x0000B880;
-constexpr auto TIMER2_BASE = MMIO_BASE + 0x0000B000;
-constexpr auto CLOCK_BASE = MMIO_BASE + 0x00100000;
-constexpr auto GPIO_BASE = MMIO_BASE + 0x00200000;
-constexpr auto UART0_BASE = MMIO_BASE + 0x00201000;
-constexpr auto PCM_BASE = GPIO_BASE + 0x00003000;
-constexpr auto EMMC_BASE = MMIO_BASE + 0x00300000;
+#define TIMER_BASE (mmioBase + 0x00003000)
+#define DMA_BASE (mmioBase + 0x00007000)
+#define INTERRUPT_BASE (mmioBase + 0x0000B000)
+#define MAILBOX_BASE (mmioBase + 0x0000B880)
+#define TIMER2_BASE (mmioBase + 0x0000B000)
+#define CLOCK_BASE (mmioBase + 0x00100000)
+#define GPIO_BASE (mmioBase + 0x00200000)
+#define UART0_BASE (mmioBase + 0x00201000)
+#define PCM_BASE (GPIO_BASE + 0x00003000)
+#define EMMC_BASE (mmioBase + 0x00300000)
 
 // Mini Uart/2 SPI Masters
-constexpr auto AUX_BASE = MMIO_BASE + 0x00215000;
+#define AUX_BASE (mmioBase + 0x00215000)
 #define AUX_IRQ ((volatile uint32_t*)(AUX_BASE + 0x00))
 #define AUX_ENABLES ((volatile uint32_t*)(AUX_BASE + 0x04))
 #define AUX_MU_IO_REG ((volatile uint32_t*)(AUX_BASE + 0x40))
@@ -45,10 +41,15 @@ constexpr auto AUX_BASE = MMIO_BASE + 0x00215000;
 #define AUX_SPI1_IO_REG ((volatile uint32_t*)(AUX_BASE + 0xD0))
 #define AUX_SPI1_PEEK_REG ((volatile uint32_t*)(AUX_BASE + 0xD4))
 
-static void memory_read_barrier() {
+static inline void memory_read_barrier() {
     asm("DMB LD");
 }
 
-static void memory_write_barrier() {
+static inline void memory_write_barrier() {
     asm("DMB ST");
+}
+
+static inline void delay(uint32_t count) {
+    asm volatile("__delay_%=: subs %[count], %[count], #1; bne __delay_%=\n"
+    : "=r"(count): [count]"0"(count) : "cc");
 }

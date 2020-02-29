@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="QEMU" type="ShConfigurationType">
+    <option name="SCRIPT_PATH" value="F:/tools/qemu/qemu-system-aarch64.exe" />
+    <option name="SCRIPT_OPTIONS" value="-M raspi3 -serial stdio -kernel .\cmake-build-debug\kernel8.img -drive file=disk.img,if=sd,format=raw" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="INTERPRETER_PATH" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <method v="2" />
+  </configuration>
+</component>

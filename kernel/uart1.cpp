@@ -9,20 +9,20 @@ void Uart1::initialise(Uart1Pins pins) {
     // Enable Uart1 on GPIO
     switch (pins) {
         case Uart1Pins::GPIO_14_15_16_17:
-            setGpioPin(1, 4, GpioMode::Function5);
-            setGpioPin(1, 5, GpioMode::Function5);
+            setGpioPinMode(14, GpioMode::Function5);
+            setGpioPinMode(15, GpioMode::Function5);
             setGpioPinUpDown((1u << 14u) | (1u << 15u), 0, GpioPinupMode::Off);
             break;
 
         case Uart1Pins::GPIO_30_31_32_33:
-            setGpioPin(3, 2, GpioMode::Function5);
-            setGpioPin(3, 3, GpioMode::Function5);
+            setGpioPinMode(32, GpioMode::Function5);
+            setGpioPinMode(33, GpioMode::Function5);
             setGpioPinUpDown(0, (1u << 0u) | (1u << 1u), GpioPinupMode::Off);
             break;
 
         case Uart1Pins::GPIO_40_41_42_43:
-            setGpioPin(4, 0, GpioMode::Function5);
-            setGpioPin(4, 1, GpioMode::Function5);
+            setGpioPinMode(40, GpioMode::Function5);
+            setGpioPinMode(41, GpioMode::Function5);
             setGpioPinUpDown(0, (1u << 8u) | (1u << 9u), GpioPinupMode::Off);
             break;
     }

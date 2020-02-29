@@ -50,5 +50,6 @@ enum class GpioPinupMode {
     PullUp = 2,
 };
 
-void setGpioPin(uint32_t bank, uint32_t pin, GpioMode mode);
+void setGpioPinMode(uint32_t pin, GpioMode mode);
 void setGpioPinUpDown(uint32_t pins0, uint32_t pins1, GpioPinupMode mode);
+bool getGpioPin(uint32_t pin);

@@ -56,20 +56,20 @@ void Uart0::initialise(Uart0Pins pins) {
     // Enable Uart0 on GPIO
     switch (pins) {
         case Uart0Pins::GPIO_14_15_16_17:
-            setGpioPin(1, 4, GpioMode::Function0);
-            setGpioPin(1, 5, GpioMode::Function0);
+            setGpioPinMode(14, GpioMode::Function0);
+            setGpioPinMode(15, GpioMode::Function0);
             setGpioPinUpDown((1u << 14u) | (1u << 15u), 0, GpioPinupMode::Off);
             break;
 
         case Uart0Pins::GPIO_30_31_32_33:
-            setGpioPin(3, 2, GpioMode::Function3);
-            setGpioPin(3, 3, GpioMode::Function3);
+            setGpioPinMode(32, GpioMode::Function3);
+            setGpioPinMode(33, GpioMode::Function3);
             setGpioPinUpDown(0, (1u << 0u) | (1u << 1u), GpioPinupMode::Off);
             break;
 
         case Uart0Pins::GPIO_36_37_38_39:
-            setGpioPin(3, 6, GpioMode::Function2);
-            setGpioPin(3, 7, GpioMode::Function2);
+            setGpioPinMode(36, GpioMode::Function2);
+            setGpioPinMode(37, GpioMode::Function2);
             setGpioPinUpDown(0, (1u << 4u) | (1u << 5u), GpioPinupMode::Off);
             break;
     }
@@ -107,5 +107,31 @@ void Uart0::write(const char* value) {
             write('\r');
         }
         write(*value++);
+    }
+}
+
+void Uart0::write(uint32_t value) {
+    constexpr auto nibbles = sizeof(value) * 2;
+    static const char lookup[]
+            {
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+            };
+
+    for (auto i = 0u; i < nibbles; i++) {
+        auto chr = (value >> (((nibbles - 1u) - i) * 4u)) & 0x0F;
+        write(lookup[chr]);
+    }
+}
+
+void Uart0::write(uint64_t value) {
+    constexpr auto nibbles = sizeof(value) * 2;
+    static const char lookup[]
+            {
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+            };
+
+    for (auto i = 0u; i < nibbles; i++) {
+        auto chr = (value >> (((nibbles - 1u) - i) * 4u)) & 0x0F;
+        write(lookup[chr]);
     }
 }

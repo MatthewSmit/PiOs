@@ -1,8 +1,11 @@
 #include "ktypes.h"
 
+#include "emmc.h"
 #include "mailbox.h"
 #include "uart0.h"
 #include "uart1.h"
+
+uint64_t mmioBase;
 
 enum class ATagType {
     None = 0x00000000,
@@ -23,29 +26,7 @@ struct ATag {
     };
 };
 
-void uart_puti(uint32_t value) {
-    static const char lookup[]
-    {
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
-    };
-
-    for (auto i = 0u; i < 8; i++) {
-        auto chr = (value >> ((7 - i) * 4)) & 0x0F;
-        Uart0::write(lookup[chr]);
-    }
-}
-
-void uart_putl(uint64_t value) {
-    static const char lookup[]
-    {
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
-    };
-
-    for (auto i = 0u; i < 16; i++) {
-        auto chr = (value >> ((15 - i) * 4)) & 0x0F;
-        Uart0::write(lookup[chr]);
-    }
-}
+void detectVersion();
 
 void get_memory_information(ATag* tag, void*& start, void*& end) {
     while (tag->type != ATagType::None) {
@@ -60,19 +41,36 @@ void get_memory_information(ATag* tag, void*& start, void*& end) {
 
 extern uint64_t __end;
 
+void detectVersion() {
+    uint64_t reg;
+    asm volatile("mrs %0, midr_el1" : "=r" (reg));
+
+    switch ((reg >> 4u) & 0xFFFu) {
+        case 0xB76: mmioBase = 0x20000000; break;
+        case 0xC07: mmioBase = 0x3F000000; break;
+        case 0xD03: mmioBase = 0x3F000000; break;
+        case 0xD08: mmioBase = 0xFE000000; break;
+        default:    mmioBase = 0x20000000; break;
+    }
+}
+
 extern "C" void main(uint64_t atags) {
+    detectVersion();
+
     Uart1::initialise(Uart1Pins::GPIO_30_31_32_33);
     Uart0::initialise(Uart0Pins::GPIO_14_15_16_17);
     Uart0::write("Hello, kernel World!\n");
 
+    Emmc::initialise();
+
     void* memoryStart;
     void* memoryEnd;
     get_memory_information((ATag*)atags, memoryStart, memoryEnd);
-    uart_putl((uint64_t)memoryStart);
+    Uart0::write((uint64_t)memoryStart);
     Uart0::write("\n");
-    uart_putl((uint64_t)memoryEnd);
+    Uart0::write((uint64_t)memoryEnd);
     Uart0::write("\n");
-    uart_putl((uint64_t)&__end);
+    Uart0::write((uint64_t)&__end);
     Uart0::write("\n");
 
     // TODO: use memory
@@ -92,7 +90,7 @@ extern "C" void main(uint64_t atags) {
 
     if (Mailbox::callTag(buffer)) {
         Uart0::write("Serial: ");
-        uart_putl(*(uint64_t*)buffer->tag[0].buffer);
+        Uart0::write(*(uint64_t*)buffer->tag[0].buffer);
         Uart0::write('\n');
     } else {
         Uart0::write("Error calling mailbox tag\n");

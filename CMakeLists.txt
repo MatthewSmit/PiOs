@@ -6,7 +6,7 @@ set(CMAKE_ASM_FLAGS_DEBUG "")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_LINK_EXECUTABLE "aarch64-linux-gnu-gcc <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
-add_executable(PiOs kernel/loader.S kernel/main.cpp kernel/ktypes.h kernel/BCM2837.h kernel/uart1.h kernel/uart1.cpp kernel/gpio.h kernel/gpio.cpp kernel/mailbox.cpp kernel/mailbox.h kernel/uart0.cpp kernel/uart0.h)
+add_executable(PiOs kernel/loader.S kernel/main.cpp kernel/ktypes.h kernel/BCM2837.h kernel/uart1.h kernel/uart1.cpp kernel/gpio.h kernel/gpio.cpp kernel/mailbox.cpp kernel/mailbox.h kernel/uart0.cpp kernel/uart0.h kernel/emmc.cpp kernel/emmc.h kernel/timer.cpp kernel/timer.h)
 
 target_compile_options(PiOs PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:
