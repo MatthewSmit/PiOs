@@ -26,8 +26,6 @@ struct ATag {
     };
 };
 
-void startBootstrap();
-
 void get_memory_information(ATag* tag, void*& start, void*& end) {
     while (tag->type != ATagType::None) {
         if (tag->type == ATagType::Memory) {
@@ -123,11 +121,8 @@ void threadInitialise() {
 }
 
 void threadCreateStub() {
-    Uart0::write("XXXX: \n");
-    Uart0::write("XXXX2: ");
-    while (true);
     void (*actualFunction)();
-    asm volatile("mov %0, x30" : "=r" (actualFunction));
+    asm volatile("mov %0, x7" : "=r" (actualFunction));
     actualFunction();
     threads[currentThread].state = ThreadState::Stopped;
     threadYield();
@@ -137,7 +132,7 @@ void threadCreate(void (*func)(uint32_t), uint32_t i, Thread& thread) {
     thread.state = ThreadState::Stopped;
     thread.registers = Registers{};
     thread.registers.generalPurpose[0] = i;
-    thread.registers.generalPurpose[30] = (uint64_t)func;
+    thread.registers.generalPurpose[7] = (uint64_t)func;
     thread.registers.sp = (uint64_t)createBlock() + 40960;
     thread.registers.pc = (uint64_t)threadCreateStub;
 }
@@ -146,42 +141,28 @@ void threadDelete(Thread& thread) {
     thread.state = ThreadState::Stopped;
 }
 
-void saveState(Thread& thread, void* returnPC) {
-    // Since we're yielding, all GP registers are either caller saved (thus saved already) or callee saved(and we can discard them)
-    thread.registers.pc = (uint64_t)returnPC;
-    asm volatile("mov %0, sp" : "=r" (thread.registers.sp));
-}
-
 void restoreState(Thread& thread) {
-//    asm volatile("mov x0, %0" : : "r" (thread.registers.generalPurpose[0]));
-//    asm volatile("mov x1, %0" : : "r" (thread.registers.generalPurpose[1]));
-//    asm volatile("mov x2, %0" : : "r" (thread.registers.generalPurpose[2]));
-//    asm volatile("mov x3, %0" : : "r" (thread.registers.generalPurpose[3]));
-//    asm volatile("mov x4, %0" : : "r" (thread.registers.generalPurpose[4]));
-//    asm volatile("mov x5, %0" : : "r" (thread.registers.generalPurpose[5]));
-//    asm volatile("mov x6, %0" : : "r" (thread.registers.generalPurpose[6]));
-//    asm volatile("mov x7, %0" : : "r" (thread.registers.generalPurpose[7]));
-    uint64_t sp;
-    asm volatile("mov %0, sp" : "=r" (sp));
-    Uart0::write("Original SP: ");
-    Uart0::write(sp);
-    Uart0::write('\n');
-    Uart0::write("To set SP: ");
-    Uart0::write(thread.registers.sp);
-    Uart0::write('\n');
+    asm volatile("mov x0, %0" : : "r" (thread.registers.generalPurpose[0]));
+    asm volatile("mov x1, %0" : : "r" (thread.registers.generalPurpose[1]));
+    asm volatile("mov x2, %0" : : "r" (thread.registers.generalPurpose[2]));
+    asm volatile("mov x3, %0" : : "r" (thread.registers.generalPurpose[3]));
+    asm volatile("mov x4, %0" : : "r" (thread.registers.generalPurpose[4]));
+    asm volatile("mov x5, %0" : : "r" (thread.registers.generalPurpose[5]));
+    asm volatile("mov x6, %0" : : "r" (thread.registers.generalPurpose[6]));
+    asm volatile("mov x7, %0" : : "r" (thread.registers.generalPurpose[7]));
 
-    asm volatile("mov sp, %0" : : "r" (thread.registers.sp));
-
-//    asm volatile("mov %0, sp" : "=r" (sp));
-//    Uart0::write("New SP: ");
-//    Uart0::write(sp);
-//    Uart0::write('\n');
-
-    asm volatile("mov x9, %0; br x9" : : "r" (thread.registers.pc));
+    asm volatile("mov sp, %0\n"
+                 "mov x9, %1\n"
+                 "br x9"
+                 :
+                 : "r" (thread.registers.sp), "r" (thread.registers.pc));
 }
 
 void threadYield() {
-    saveState(threads[currentThread], &&onRestore);
+    // Since we're yielding, all GP registers are either caller saved (thus saved already) or callee saved(and we can discard them)
+    threads[currentThread].registers.pc = (uint64_t)&&onRestore;
+    asm volatile("mov %0, sp" : "=r" (threads[currentThread].registers.sp));
+
     if (threads[currentThread].state == ThreadState::Running) {
         threads[currentThread].state = ThreadState::Ready;
     }
