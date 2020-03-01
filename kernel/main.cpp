@@ -92,24 +92,20 @@ enum class ThreadState {
 typedef __attribute__((__vector_size__(16))) int8_t __neon_int8x16_t;
 
 struct Registers {
-    uint64_t generalPurpose[31];
-    __neon_int8x16_t simd[31];
-    uint64_t nzcv;
-    uint64_t daif;
-    uint64_t pc;
-    uint64_t sp;
-
-//    TTBR0_EL1 and TTBR0.
-//    Thread Process ID (TPIDxxx) Registers.
-//    Address Space ID (ASID).
+    uint64_t gp[32];
 };
+
+static_assert(sizeof(Registers) == 256);
 
 struct Thread {
     ThreadState state;
     Registers registers;
+    uint64_t pc;
+    uint64_t sp;
 };
 
-Thread threads[3];
+constexpr auto NUMBER_THREADS = 3;
+Thread threads[NUMBER_THREADS];
 uint32_t currentThread;
 
 void threadYield();
@@ -131,59 +127,54 @@ void threadCreateStub() {
 void threadCreate(void (*func)(uint32_t), uint32_t i, Thread& thread) {
     thread.state = ThreadState::Stopped;
     thread.registers = Registers{};
-    thread.registers.generalPurpose[0] = i;
-    thread.registers.generalPurpose[7] = (uint64_t)func;
-    thread.registers.sp = (uint64_t)createBlock() + 40960;
-    thread.registers.pc = (uint64_t)threadCreateStub;
+    thread.sp = (uint64_t)createBlock() + 40960 - sizeof(Registers);
+    thread.pc = (uint64_t)threadCreateStub;
+    auto registers = (Registers*)(void*)thread.sp;
+    registers->gp[0] = i;
+    registers->gp[7] = (uint64_t)func;
 }
 
 void threadDelete(Thread& thread) {
     thread.state = ThreadState::Stopped;
 }
 
-void restoreState(Thread& thread) {
-    asm volatile("mov x0, %0" : : "r" (thread.registers.generalPurpose[0]));
-    asm volatile("mov x1, %0" : : "r" (thread.registers.generalPurpose[1]));
-    asm volatile("mov x2, %0" : : "r" (thread.registers.generalPurpose[2]));
-    asm volatile("mov x3, %0" : : "r" (thread.registers.generalPurpose[3]));
-    asm volatile("mov x4, %0" : : "r" (thread.registers.generalPurpose[4]));
-    asm volatile("mov x5, %0" : : "r" (thread.registers.generalPurpose[5]));
-    asm volatile("mov x6, %0" : : "r" (thread.registers.generalPurpose[6]));
-    asm volatile("mov x7, %0" : : "r" (thread.registers.generalPurpose[7]));
+//void restoreState(Thread& thread) {
+//    asm volatile("mov x0, %0" : : "r" (thread.registers.generalPurpose[0]));
+//    asm volatile("mov x1, %0" : : "r" (thread.registers.generalPurpose[1]));
+//    asm volatile("mov x2, %0" : : "r" (thread.registers.generalPurpose[2]));
+//    asm volatile("mov x3, %0" : : "r" (thread.registers.generalPurpose[3]));
+//    asm volatile("mov x4, %0" : : "r" (thread.registers.generalPurpose[4]));
+//    asm volatile("mov x5, %0" : : "r" (thread.registers.generalPurpose[5]));
+//    asm volatile("mov x6, %0" : : "r" (thread.registers.generalPurpose[6]));
+//    asm volatile("mov x7, %0" : : "r" (thread.registers.generalPurpose[7]));
+//
+//    asm volatile("mov sp, %0\n"
+//                 "mov x9, %1\n"
+//                 "br x9"
+//                 :
+//                 : "r" (thread.registers.sp), "r" (thread.registers.pc));
+//}
 
-    asm volatile("mov sp, %0\n"
-                 "mov x9, %1\n"
-                 "br x9"
-                 :
-                 : "r" (thread.registers.sp), "r" (thread.registers.pc));
-}
+extern "C" void changeState(uint64_t* oldPc, uint64_t* oldSp, uint64_t pc, uint64_t sp);
 
 void threadYield() {
-    // Since we're yielding, all GP registers are either caller saved (thus saved already) or callee saved(and we can discard them)
-    threads[currentThread].registers.pc = (uint64_t)&&onRestore;
-    asm volatile("mov %0, sp" : "=r" (threads[currentThread].registers.sp));
-
     if (threads[currentThread].state == ThreadState::Running) {
         threads[currentThread].state = ThreadState::Ready;
     }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
+
+    auto oldThreadId = currentThread;
+
     while (true) {
         currentThread++;
-        if (currentThread >= 3) {
+        if (currentThread >= NUMBER_THREADS) {
             currentThread = 0;
         }
+
         if (threads[currentThread].state == ThreadState::Ready) {
-            restoreState(threads[currentThread]);
+            changeState(&threads[oldThreadId].pc, &threads[oldThreadId].sp, threads[currentThread].pc, threads[currentThread].sp);
+            return;
         }
     }
-#pragma clang diagnostic pop
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-label"
-    onRestore:
-    return;
-#pragma clang diagnostic pop
 }
 
 void threadStart(Thread& thread) {
@@ -209,8 +200,8 @@ void threadFunc(uint32_t arg0) {
 
 void threadTest() {
     threadInitialise();
-    threadCreate(threadFunc, 0, threads[1]);
-    threadCreate(threadFunc, 1, threads[2]);
+    threadCreate(threadFunc, 0x0BAD, threads[1]);
+    threadCreate(threadFunc, 0x0CAF, threads[2]);
 
     threadStart(threads[1]);
     threadStart(threads[2]);

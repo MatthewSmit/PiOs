@@ -11,7 +11,23 @@ set(CMAKE_CXX_STANDARD_LIBRARIES "")
 set(CMAKE_CXX_STANDARD_LIBRARIES_INIT "")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 
-add_executable(PiOs kernel/loader.S kernel/main.cpp kernel/ktypes.h kernel/BCM2837.h kernel/uart1.h kernel/uart1.cpp kernel/gpio.h kernel/gpio.cpp kernel/mailbox.cpp kernel/mailbox.h kernel/uart0.cpp kernel/uart0.h kernel/emmc.cpp kernel/emmc.h kernel/timer.cpp kernel/timer.h)
+add_executable(PiOs kernel/loader.S
+        kernel/helper.S
+        kernel/main.cpp
+        kernel/ktypes.h
+        kernel/BCM2837.h
+        kernel/uart1.h
+        kernel/uart1.cpp
+        kernel/gpio.h
+        kernel/gpio.cpp
+        kernel/mailbox.cpp
+        kernel/mailbox.h
+        kernel/uart0.cpp
+        kernel/uart0.h
+        kernel/emmc.cpp
+        kernel/emmc.h
+        kernel/timer.cpp
+        kernel/timer.h)
 
 target_compile_options(PiOs PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:
