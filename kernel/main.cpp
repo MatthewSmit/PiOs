@@ -84,8 +84,11 @@ extern "C" void* memcpy(void* destination, const void* source, size_t num) {
 }
 
 enum class ThreadState {
+    // Either dead or unborn.
     Stopped,
+    // Ready to run.
     Ready,
+    // Is running.
     Running,
 };
 
@@ -99,7 +102,6 @@ static_assert(sizeof(Registers) == 256);
 
 struct Thread {
     ThreadState state;
-    Registers registers;
     uint64_t pc;
     uint64_t sp;
 };
@@ -126,34 +128,21 @@ void threadCreateStub() {
 
 void threadCreate(void (*func)(uint32_t), uint32_t i, Thread& thread) {
     thread.state = ThreadState::Stopped;
-    thread.registers = Registers{};
+
+    // Allocates a stack of 10 pages.
     thread.sp = (uint64_t)createBlock() + 40960 - sizeof(Registers);
     thread.pc = (uint64_t)threadCreateStub;
+
+    // Fake generate a stack frame. Arguments 0-6 will be user supplied, argument 7 will be the real function to call.
     auto registers = (Registers*)(void*)thread.sp;
     registers->gp[0] = i;
     registers->gp[7] = (uint64_t)func;
 }
 
 void threadDelete(Thread& thread) {
+    // TODO: will need error checking here eventually
     thread.state = ThreadState::Stopped;
 }
-
-//void restoreState(Thread& thread) {
-//    asm volatile("mov x0, %0" : : "r" (thread.registers.generalPurpose[0]));
-//    asm volatile("mov x1, %0" : : "r" (thread.registers.generalPurpose[1]));
-//    asm volatile("mov x2, %0" : : "r" (thread.registers.generalPurpose[2]));
-//    asm volatile("mov x3, %0" : : "r" (thread.registers.generalPurpose[3]));
-//    asm volatile("mov x4, %0" : : "r" (thread.registers.generalPurpose[4]));
-//    asm volatile("mov x5, %0" : : "r" (thread.registers.generalPurpose[5]));
-//    asm volatile("mov x6, %0" : : "r" (thread.registers.generalPurpose[6]));
-//    asm volatile("mov x7, %0" : : "r" (thread.registers.generalPurpose[7]));
-//
-//    asm volatile("mov sp, %0\n"
-//                 "mov x9, %1\n"
-//                 "br x9"
-//                 :
-//                 : "r" (thread.registers.sp), "r" (thread.registers.pc));
-//}
 
 extern "C" void changeState(uint64_t* oldPc, uint64_t* oldSp, uint64_t pc, uint64_t sp);
 
@@ -164,6 +153,8 @@ void threadYield() {
 
     auto oldThreadId = currentThread;
 
+    // Very simple round-robin scheduler.
+    // Will likely need atomic state access (or locking) when multi processors implemented.
     while (true) {
         currentThread++;
         if (currentThread >= NUMBER_THREADS) {

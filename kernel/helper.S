@@ -1,4 +1,7 @@
-saveState:
+.globl changeState
+changeState:
+// Saves all general purpose registers (except x18) into the stack.
+.saveState:
     sub sp, sp, #(256)
     stp x0, x1, [sp, #0 * 16]
     stp x2, x3, [sp, #1 * 16]
@@ -15,10 +18,22 @@ saveState:
     stp x24, x25, [sp, #12 * 16]
     stp x26, x27, [sp, #13 * 16]
     stp x28, x29, [sp, #14 * 16]
-    str x18, [sp, #15 * 16]
-    ret
+    str x30, [sp, #15 * 16]
 
-loadState:
+// Saves the old program counter & stack pointer to addressess in x0/x1
+.saveOldPCSP:
+    adr x8, .return
+    str x8, [x0]
+    mov x8, sp
+    str x8, [x1]
+
+// Loads the new program counter & stack pointer from x2/x3
+.loadPCSP:
+    mov sp, x3
+    mov x18, x2
+
+// Restores saved general purpose registers
+.loadState:
     ldp x0, x1, [sp, #0 * 16]
     ldp x2, x3, [sp, #1 * 16]
     ldp x4, x5, [sp, #2 * 16]
@@ -36,22 +51,9 @@ loadState:
     ldp x28, x29, [sp, #14 * 16]
     ldr x30, [sp, #15 * 16]
     add sp, sp, #(256)
+    // Jump to the saved program counter
     br x18
 
-.globl changeState
-changeState:
-    mov x18, x30
-    bl saveState
-
-    adr x8, .return
-    str x8, [x0]
-    mov x8, sp
-    str x8, [x1]
-
-    mov sp, x3
-    mov x18, x2
-
-    b loadState
-
+// This is the address that we jump back to
 .return:
     ret
