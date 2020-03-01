@@ -1,0 +1,17 @@
+Bootstrap process: (talk to it to start processes)
+	(Reserve first 64 processes for commonly used processes?) Would let you go send(process[1], IO operation)
+	File Manager Process (Essentially bridge between FS/Disk and Applications)
+		Disk Processes (SD card initially)
+		FS Processes (TAR initially)
+	USB HUB Process
+		TODO
+	Network Manager Process
+		TODO
+	Serial Process
+	(Once loaded serial, redirect from stub serial output to this process)
+	GPU Process
+		GPU Serial
+		(Once loaded, redirect from serial output to GPU serial output)
+	
+	# This is where user stuff would start
+	Probably just start a desktop manager initially
