@@ -4,8 +4,8 @@
 .section ".text.boot"
  
 // Make _start global.
-.globl _start
- 
+.global _start
+
     .org 0x0
 // Entry point for the kernel. Registers are not defined as in AArch32.
 _start:
@@ -50,6 +50,10 @@ test_EL2:
     orr     x3, x3, #(1 << 1)   // SWIO hardwired on Pi3
     msr     hcr_el2, x3
     mrs     x3, hcr_el2
+    // Setup SCTLR access
+    mov     x2, #0x0800
+    movk    x2, #0x30d0, lsl #16
+    msr     sctlr_el1, x2
     // change execution level to EL1
     mov     x2, #0x3c4
     msr     spsr_el2, x2
@@ -59,6 +63,8 @@ test_EL2:
 
 set_stack:
     mov     sp, x1
+
+    // bl setupPaging
  
     // clear bss
     ldr     x1, =__bss_start

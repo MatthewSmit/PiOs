@@ -1,3 +1,5 @@
+.section ".text"
+
 .globl changeState
 changeState:
 // Saves all general purpose registers (except x18) into the stack.

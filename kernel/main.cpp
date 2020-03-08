@@ -5,8 +5,6 @@
 #include "uart0.h"
 #include "uart1.h"
 
-uint64_t mmioBase;
-
 enum class ATagType {
     None = 0x00000000,
     Core = 0x54410001,
@@ -26,6 +24,15 @@ struct ATag {
     };
 };
 
+void queryEL() {
+    uint64_t el;
+    asm volatile ("mrs %0, CurrentEL" : "=r" (el));
+
+    Uart0::write("Current EL is: ");
+    Uart0::write((el>>2)&3);
+    Uart0::write("\n");
+}
+
 void get_memory_information(ATag* tag, void*& start, void*& end) {
     while (tag->type != ATagType::None) {
         if (tag->type == ATagType::Memory) {
@@ -37,32 +44,12 @@ void get_memory_information(ATag* tag, void*& start, void*& end) {
     }
 }
 
+extern uint64_t end;
 extern uint64_t __end;
 
-void detectVersion() {
-    uint64_t reg;
-    asm volatile("mrs %0, midr_el1" : "=r" (reg));
-
-    switch ((reg >> 4u) & 0xFFFu) {
-        // RPI 1
-        case 0xB76: mmioBase = 0x20000000; break;
-
-        // RPI 2/3
-        case 0xC07:
-        case 0xD03: mmioBase = 0x3F000000; break;
-
-        // RPI 4
-        case 0xD08: mmioBase = 0xFE000000; break;
-
-        default:    mmioBase = 0x20000000; break;
-    }
-}
-
-uint64_t ptr;
-
 void* createBlock() {
-    auto block = (void*)ptr;
-    ptr += 40960;
+    auto block = (void*)end;
+    end += 40960;
     return block;
 }
 
@@ -113,7 +100,6 @@ uint32_t currentThread;
 void threadYield();
 
 void threadInitialise() {
-    ptr = (uint64_t)&__end;
     currentThread = 0;
     threads[0].state = ThreadState::Running;
 }
@@ -204,14 +190,22 @@ void threadTest() {
     threadDelete(threads[2]);
 }
 
+extern "C" void detectVersion();
+extern "C" void setupPaging();
+
 extern "C" void main(uint64_t atags) {
+    end = (uint64_t)&__end;
     detectVersion();
 
     Uart1::initialise(Uart1Pins::GPIO_30_31_32_33);
     Uart0::initialise(Uart0Pins::GPIO_14_15_16_17);
     Uart0::write("Hello, kernel World!\n");
 
+    setupPaging();
+
 //    Emmc::initialise();
+
+    queryEL();
 
     void* memoryStart;
     void* memoryEnd;
@@ -224,7 +218,7 @@ extern "C" void main(uint64_t atags) {
     Uart0::write("\n");
 
     // TODO: use memory
-    auto* buffer = (MailboxTagBuffer*)&__end;
+    auto* buffer = (MailboxTagBuffer*)end;
     buffer->size = 8 * 4;
     buffer->code = 0;
 
