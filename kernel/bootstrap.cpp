@@ -1,12 +1,9 @@
-//#pragma clang section bss=".text.boot" data=".text.boot" rodata=".text.boot" text=".text.boot"
+#pragma clang section bss=".text.boot" data=".text.boot" rodata=".text.boot" text=".text.boot"
 
 #include "ktypes.h"
 
-uint64_t end;
 extern uint64_t __end;
 extern uint64_t __data_start;
-
-uint64_t mmioBase;
 
 constexpr auto PAGESIZE = 4096;
 
@@ -29,12 +26,31 @@ constexpr auto PAGESIZE = 4096;
 
 #define TTBR_CNP    1
 
-void copiedCreateTables() {
+static uint64_t getMmioBaseFromVersion() {
+    uint64_t reg;
+    asm volatile("mrs %0, midr_el1" : "=r" (reg));
+
+    switch ((reg >> 4u) & 0xFFFu) {
+        // RPI 1
+        case 0xB76: return 0x20000000;
+
+            // RPI 2/3
+        case 0xC07:
+        case 0xD03: return 0x3F000000;
+
+            // RPI 4
+        case 0xD08: return 0xFE000000;
+
+        default:    return 0x20000000;
+    }
+}
+
+static void copiedCreateTables(uint64_t bootstrapEnd) {
     unsigned long data_page = (unsigned long)&__data_start/PAGESIZE;
-    auto* paging = (unsigned long*)end;
+    auto* paging = (unsigned long*)bootstrapEnd;
 
     // TTBR0, identity L1
-    paging[0]=(unsigned long)((unsigned char*)end+2*PAGESIZE) |    // physical address
+    paging[0]=(unsigned long)((unsigned char*)bootstrapEnd+2*PAGESIZE) |    // physical address
               PT_PAGE |     // it has the "Present" flag, which must be set, and we have area in it mapped by pages
               PT_AF |       // accessed flag. Without this we're going to have a Data Abort exception
               PT_USER |     // non-privileged
@@ -42,7 +58,7 @@ void copiedCreateTables() {
               PT_MEM;       // normal memory
 
     // identity L2, first 2M block
-    paging[2*512]=(unsigned long)((unsigned char*)end+3*PAGESIZE) | // physical address
+    paging[2*512]=(unsigned long)((unsigned char*)bootstrapEnd+3*PAGESIZE) | // physical address
                   PT_PAGE |     // we have area in it mapped by pages
                   PT_AF |       // accessed flag
                   PT_USER |     // non-privileged
@@ -50,7 +66,7 @@ void copiedCreateTables() {
                   PT_MEM;       // normal memory
 
     // identity L2 2M blocks
-    auto b=mmioBase>>21;
+    auto b = getMmioBaseFromVersion() >> 21;
     // skip 0th, as we're about to map it by L3
     for(auto r=1;r<512;r++)
         paging[2*512+r]=(unsigned long)((r<<21)) |  // physical address
@@ -70,7 +86,7 @@ void copiedCreateTables() {
                         ((r<0x80||r>=data_page)? PT_RW|PT_NX : PT_RO); // different for code and data
 
     // TTBR1, kernel L1
-    paging[512+511]=(unsigned long)((unsigned char*)end+4*PAGESIZE) | // physical address
+    paging[512+511]=(unsigned long)((unsigned char*)bootstrapEnd+4*PAGESIZE) | // physical address
                     PT_PAGE |     // we have area in it mapped by pages
                     PT_AF |       // accessed flag
                     PT_KERNEL |   // privileged
@@ -78,7 +94,7 @@ void copiedCreateTables() {
                     PT_MEM;       // normal memory
 
     // kernel L2
-    paging[4*512+511]=(unsigned long)((unsigned char*)end+5*PAGESIZE) |   // physical address
+    paging[4*512+511]=(unsigned long)((unsigned char*)bootstrapEnd+5*PAGESIZE) |   // physical address
                       PT_PAGE |     // we have area in it mapped by pages
                       PT_AF |       // accessed flag
                       PT_KERNEL |   // privileged
@@ -86,7 +102,7 @@ void copiedCreateTables() {
                       PT_MEM;       // normal memory
 
     // kernel L3
-    paging[5*512]=(unsigned long)(mmioBase+0x00201000) |   // physical address
+    paging[5*512]=(unsigned long)(getMmioBaseFromVersion() + 0x00201000) |   // physical address
                   PT_PAGE |     // map 4k
                   PT_AF |       // accessed flag
                   PT_NX |       // no execute
@@ -95,7 +111,7 @@ void copiedCreateTables() {
                   PT_DEV;       // device memory
 }
 
-void copiedSetRegisters() {
+static void copiedSetRegisters(uint64_t bootstrapEnd) {
     // check for 4k granule and at least 36 bits physical address bus */
     unsigned long r;
     asm volatile ("mrs %0, id_aa64mmfr0_el1" : "=r" (r));
@@ -130,9 +146,9 @@ void copiedSetRegisters() {
 
     // tell the MMU where our translation tables are. TTBR_CNP bit not documented, but required
     // lower half, user space
-    asm volatile ("msr ttbr0_el1, %0" : : "r" ((unsigned long)end + TTBR_CNP));
+    asm volatile ("msr ttbr0_el1, %0" : : "r" ((unsigned long)bootstrapEnd + TTBR_CNP));
     // upper half, kernel space
-    asm volatile ("msr ttbr1_el1, %0" : : "r" ((unsigned long)end + TTBR_CNP + PAGESIZE));
+    asm volatile ("msr ttbr1_el1, %0" : : "r" ((unsigned long)bootstrapEnd + TTBR_CNP + PAGESIZE));
 
     // finally, toggle some bits in system control register to enable page translation
     asm volatile ("dsb ish; isb; mrs %0, sctlr_el1" : "=r" (r));
@@ -148,47 +164,23 @@ void copiedSetRegisters() {
     r|=  (1<<0);     // set M, enable MMU
     asm volatile ("msr sctlr_el1, %0; isb" : : "r" (r));
 
-    end += PAGESIZE * 10;
 }
 
-extern "C" void detectVersion();
+extern "C" uint64_t setupPaging() {
+    //You must set CPUECTLR.SMPEN to 1 before the caches and MMU are enabled
+    asm volatile("mrs x1, S3_1_c15_c2_1\n"
+                 "and x1, x1, %0\n"
+                 "msr S3_1_c15_c2_1, x1"
+                 :
+                 : "I"(1U << 6U));
 
-void copied() {
-    end = (uint64_t)&__end;
-    detectVersion();
+    auto bootstrapEnd = (uint64_t)&__end;
+
     /* create MMU translation tables at _end */
-    copiedCreateTables();
+    copiedCreateTables(bootstrapEnd);
 
     /* okay, now we have to set system registers to enable MMU */
-    copiedSetRegisters();
-}
+    copiedSetRegisters(bootstrapEnd);
 
-extern "C" void detectVersion() {
-    uint64_t reg;
-    asm volatile("mrs %0, midr_el1" : "=r" (reg));
-
-    switch ((reg >> 4u) & 0xFFFu) {
-        // RPI 1
-        case 0xB76: mmioBase = 0x20000000; break;
-
-            // RPI 2/3
-        case 0xC07:
-        case 0xD03: mmioBase = 0x3F000000; break;
-
-            // RPI 4
-        case 0xD08: mmioBase = 0xFE000000; break;
-
-        default:    mmioBase = 0x20000000; break;
-    }
-}
-
-extern "C" void setupPaging() {
-    //You must set CPUECTLR.SMPEN to 1 before the caches and MMU are enabled
-//    asm volatile("mrs x1, S3_1_c15_c2_1\n"
-//                 "and x1, x1, %0\n"
-//                 "msr S3_1_c15_c2_1, x1"
-//                 :
-//                 : "I"(1U << 6U));
-
-    copied();
+    return bootstrapEnd + PAGESIZE * 10;
 }

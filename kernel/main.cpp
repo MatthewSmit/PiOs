@@ -24,6 +24,27 @@ struct ATag {
     };
 };
 
+static uint64_t getMmioBaseFromVersion() {
+    uint64_t reg;
+    asm volatile("mrs %0, midr_el1" : "=r" (reg));
+
+    switch ((reg >> 4u) & 0xFFFu) {
+            // RPI 1
+        case 0xB76: return 0x20000000;
+
+            // RPI 2/3
+        case 0xC07:
+        case 0xD03: return 0x3F000000;
+
+            // RPI 4
+        case 0xD08: return 0xFE000000;
+
+        default:    return 0x20000000;
+    }
+}
+
+uint64_t mmioBase;
+
 void queryEL() {
     uint64_t el;
     asm volatile ("mrs %0, CurrentEL" : "=r" (el));
@@ -44,7 +65,7 @@ void get_memory_information(ATag* tag, void*& start, void*& end) {
     }
 }
 
-extern uint64_t end;
+uint64_t end;
 extern uint64_t __end;
 
 void* createBlock() {
@@ -190,18 +211,15 @@ void threadTest() {
     threadDelete(threads[2]);
 }
 
-extern "C" void detectVersion();
-extern "C" void setupPaging();
+extern "C" uint64_t setupPaging();
 
-extern "C" void main(uint64_t atags) {
-    end = (uint64_t)&__end;
-    detectVersion();
+extern "C" void main(uint64_t atags, uint64_t dataEnd) {
+    end = dataEnd;
+    mmioBase = getMmioBaseFromVersion();
 
     Uart1::initialise(Uart1Pins::GPIO_30_31_32_33);
     Uart0::initialise(Uart0Pins::GPIO_14_15_16_17);
     Uart0::write("Hello, kernel World!\n");
-
-    setupPaging();
 
 //    Emmc::initialise();
 

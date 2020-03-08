@@ -24,7 +24,7 @@
 #define UART0_ITOP ((volatile uint32_t*)(UART0_BASE + 0x88))
 #define UART0_TDR ((volatile uint32_t*)(UART0_BASE + 0x8C))
 
-extern uint64_t __end;
+extern uint64_t end;
 
 void Uart0::initialise(Uart0Pins pins) {
     memory_write_barrier();
@@ -33,7 +33,7 @@ void Uart0::initialise(Uart0Pins pins) {
 
     // Setup UART clock
     // TODO: use memory
-    auto* buffer = (MailboxTagBuffer*)&__end;
+    auto* buffer = (MailboxTagBuffer*)end;
     buffer->size = 9 * 4;
     buffer->code = 0;
 

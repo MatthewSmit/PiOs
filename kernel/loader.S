@@ -64,8 +64,10 @@ test_EL2:
 set_stack:
     mov     sp, x1
 
-    // bl setupPaging
- 
+    mov     x19, x0
+    bl setupPaging
+    mov x20, x0
+
     // clear bss
     ldr     x1, =__bss_start
     ldr     w2, =__bss_size
@@ -76,6 +78,8 @@ set_stack:
 
 bss_cleared:
     // jump to C code, should not return
+    mov x0, x19
+    mov x1, x20
     bl      main
 
 // Halt the core
