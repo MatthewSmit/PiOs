@@ -87,6 +87,12 @@ static void copiedCreateTables(uint64_t bootstrapEnd) {
                         ((r<0x80||r>=data_page)? PT_RW|PT_NX : PT_RO); // different for code and data
 
     // TTBR1, kernel L1
+    paging[512+510]=(unsigned long)((unsigned char*)bootstrapEnd+6*PAGESIZE) | // physical address
+                    PT_PAGE |     // we have area in it mapped by pages
+                    PT_AF |       // accessed flag
+                    PT_KERNEL |   // privileged
+                    PT_ISH |      // inner shareable
+                    PT_MEM;       // normal memory
     paging[512+511]=(unsigned long)((unsigned char*)bootstrapEnd+4*PAGESIZE) | // physical address
                     PT_PAGE |     // we have area in it mapped by pages
                     PT_AF |       // accessed flag
@@ -102,6 +108,17 @@ static void copiedCreateTables(uint64_t bootstrapEnd) {
                         PT_NX |       // no execute
                         PT_USER |     // non-privileged
                         (r>=b? PT_OSH|PT_DEV : PT_ISH|PT_MEM); // different attributes for device memory
+    }
+
+    // kernel IO
+    for(auto r = 0; r < 512; r++) {
+        paging[6*512+r]=getMmioBaseFromVersion() + (unsigned long)(r << 21) |  // physical address
+                      PT_BLOCK |     // map 2MB
+                      PT_AF |       // accessed flag
+                      PT_NX |       // no execute
+                      PT_KERNEL |   // privileged
+                      PT_OSH |      // outter shareable
+                      PT_DEV;       // device memory
     }
 
     // identity L2, first 2M block

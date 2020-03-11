@@ -1,6 +1,5 @@
 #include "ktypes.h"
 
-#include "emmc.h"
 #include "mailbox.h"
 #include "uart0.h"
 #include "uart1.h"
@@ -25,22 +24,8 @@ struct ATag {
 };
 
 static uint64_t getMmioBaseFromVersion() {
-    uint64_t reg;
-    asm volatile("mrs %0, midr_el1" : "=r" (reg));
-
-    switch ((reg >> 4u) & 0xFFFu) {
-            // RPI 1
-        case 0xB76: return 0x20000000;
-
-            // RPI 2/3
-        case 0xC07:
-        case 0xD03: return 0x3F000000;
-
-            // RPI 4
-        case 0xD08: return 0xFE000000;
-
-        default:    return 0x20000000;
-    }
+    // Bootstrap already maps this
+    return 0xFFFFFFFF80000000;
 }
 
 uint64_t mmioBase;
@@ -60,7 +45,7 @@ void queryEL() {
     asm volatile ("mrs %0, CurrentEL" : "=r" (el));
 
     Uart0::write("Current EL is: ");
-    Uart0::write((el>>2)&3);
+    Uart0::write((el >> 2) & 3);
     Uart0::write("\n");
 }
 
@@ -78,7 +63,7 @@ void get_memory_information(ATag* tag, void*& start, void*& end) {
 uint64_t end;
 extern uint64_t __end;
 
-uint64_t highStart = 0xFFFFFFFFC0000000;
+uint64_t highStart =  0xFFFFFFFFC0000000;
 
 void* createBlock() {
     auto block = (void*)end;
@@ -227,7 +212,7 @@ extern "C" uint64_t setupPaging();
 
 extern "C" void main(uint64_t atags, uint64_t dataEnd) {
     end = dataEnd;
-    mmioBase = highStart + getMmioBaseFromVersion();
+    mmioBase = getMmioBaseFromVersion();
 
     Uart1::initialise(Uart1Pins::GPIO_30_31_32_33);
     Uart0::initialise(Uart0Pins::GPIO_14_15_16_17);
