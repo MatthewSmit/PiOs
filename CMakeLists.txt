@@ -26,7 +26,7 @@ add_executable(PiOs kernel/loader.S
         kernel/emmc.cpp
         kernel/emmc.h
         kernel/timer.cpp
-        kernel/timer.h)
+        kernel/timer.h kernel/pager.cpp kernel/pager.h kernel/config.h)
 
 target_compile_options(PiOs PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:

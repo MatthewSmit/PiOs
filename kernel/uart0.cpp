@@ -4,6 +4,7 @@
 #include "gpio.h"
 #include "mailbox.h"
 #include "uart1.h"
+#include "pager.h"
 
 #define UART0_DR ((volatile uint32_t*)(UART0_BASE + 0x00))
 #define UART0_RSRECR ((volatile uint32_t*)(UART0_BASE + 0x04))
@@ -24,16 +25,13 @@
 #define UART0_ITOP ((volatile uint32_t*)(UART0_BASE + 0x88))
 #define UART0_TDR ((volatile uint32_t*)(UART0_BASE + 0x8C))
 
-extern uint64_t end;
-
 void Uart0::initialise(Uart0Pins pins) {
     memory_write_barrier();
 
     *UART0_CR = 0;
 
     // Setup UART clock
-    // TODO: use memory
-    auto* buffer = (MailboxTagBuffer*)end;
+    auto buffer = (MailboxTagBuffer*)Pager::getPage();
     buffer->size = 9 * 4;
     buffer->code = 0;
 
@@ -52,6 +50,7 @@ void Uart0::initialise(Uart0Pins pins) {
         Uart1::write("Error calling mailbox tag from UART0\n");
         return;
     }
+    Pager::freePage(buffer);
 
     // Enable Uart0 on GPIO
     switch (pins) {

@@ -3,30 +3,7 @@
 #include "mailbox.h"
 #include "uart0.h"
 #include "uart1.h"
-
-enum class ATagType {
-    None = 0x00000000,
-    Core = 0x54410001,
-    Memory = 0x54410002,
-};
-
-struct ATagMemory {
-    uint32_t Size;
-    uint32_t Start;
-};
-
-struct ATag {
-    uint32_t size;
-    ATagType type;
-    union {
-        ATagMemory memory;
-    };
-};
-
-static uint64_t getMmioBaseFromVersion() {
-    // Bootstrap already maps this
-    return 0xFFFFFFFF80000000;
-}
+#include "pager.h"
 
 uint64_t mmioBase;
 
@@ -47,28 +24,6 @@ void queryEL() {
     Uart0::write("Current EL is: ");
     Uart0::write((el >> 2) & 3);
     Uart0::write("\n");
-}
-
-void get_memory_information(ATag* tag, void*& start, void*& end) {
-    while (tag->type != ATagType::None) {
-        if (tag->type == ATagType::Memory) {
-            start = (void*)tag->memory.Start;
-            end = (void*)((uint64_t)tag->memory.Start + tag->memory.Size);
-            break;
-        }
-        tag = (ATag*)((uint64_t)tag + (tag->size * 4));
-    }
-}
-
-uint64_t end;
-extern uint64_t __end;
-
-uint64_t highStart =  0xFFFFFFFFC0000000;
-
-void* createBlock() {
-    auto block = (void*)end;
-    end += 40960;
-    return block;
 }
 
 extern "C" void* memset(void* ptr, int value, size_t num) {
@@ -134,7 +89,8 @@ void threadCreate(void (*func)(uint32_t), uint32_t i, Thread& thread) {
     thread.state = ThreadState::Stopped;
 
     // Allocates a stack of 10 pages.
-    thread.sp = (uint64_t)createBlock() + 40960 - sizeof(Registers);
+    // TODO: Allocate more than 1 page
+    thread.sp = (uint64_t)Pager::getPage() + 4096 - sizeof(Registers);
     thread.pc = (uint64_t)threadCreateStub;
 
     // Fake generate a stack frame. Arguments 0-6 will be user supplied, argument 7 will be the real function to call.
@@ -145,6 +101,7 @@ void threadCreate(void (*func)(uint32_t), uint32_t i, Thread& thread) {
 
 void threadDelete(Thread& thread) {
     // TODO: will need error checking here eventually
+    // TODO: free stack buffer
     thread.state = ThreadState::Stopped;
 }
 
@@ -211,8 +168,10 @@ void threadTest() {
 extern "C" uint64_t setupPaging();
 
 extern "C" void main(uint64_t atags, uint64_t dataEnd) {
-    end = dataEnd;
-    mmioBase = getMmioBaseFromVersion();
+    // Bootstrap maps MMIO to this address (-2GB)
+    mmioBase = 0xFFFFFFFF80000000;
+
+    Pager::initialise((ATag*)atags, dataEnd);
 
     Uart1::initialise(Uart1Pins::GPIO_30_31_32_33);
     Uart0::initialise(Uart0Pins::GPIO_14_15_16_17);
@@ -222,18 +181,8 @@ extern "C" void main(uint64_t atags, uint64_t dataEnd) {
 
     queryEL();
 
-    void* memoryStart;
-    void* memoryEnd;
-    get_memory_information((ATag*)atags, memoryStart, memoryEnd);
-    Uart0::write((uint64_t)memoryStart);
-    Uart0::write("\n");
-    Uart0::write((uint64_t)memoryEnd);
-    Uart0::write("\n");
-    Uart0::write((uint64_t)&__end);
-    Uart0::write("\n");
-
-    // TODO: use memory
-    auto* buffer = (MailboxTagBuffer*)end;
+    static_assert(sizeof(MailboxTagBuffer) < Pager::PAGE_SIZE);
+    auto buffer = (MailboxTagBuffer*)Pager::getPage();
     buffer->size = 8 * 4;
     buffer->code = 0;
 
@@ -254,6 +203,7 @@ extern "C" void main(uint64_t atags, uint64_t dataEnd) {
     } else {
         Uart0::write("Error calling mailbox tag\n");
     }
+    Pager::freePage(buffer);
 
 //    threadTest();
 //    startBootstrap();
