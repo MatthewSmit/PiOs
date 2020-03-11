@@ -45,6 +45,16 @@ static uint64_t getMmioBaseFromVersion() {
 
 uint64_t mmioBase;
 
+void debugPrint() {
+    // Semihosting interface
+    auto tmp = "Hello Debug\r\n\0";
+    asm volatile("mov x0, #0x4\n"
+                 "mov x1, %0\n"
+                 "hlt #0xF000"
+    :
+    : "r"(tmp));
+}
+
 void queryEL() {
     uint64_t el;
     asm volatile ("mrs %0, CurrentEL" : "=r" (el));
@@ -67,6 +77,8 @@ void get_memory_information(ATag* tag, void*& start, void*& end) {
 
 uint64_t end;
 extern uint64_t __end;
+
+uint64_t highStart = 0xFFFFFFFFC0000000;
 
 void* createBlock() {
     auto block = (void*)end;
@@ -215,7 +227,7 @@ extern "C" uint64_t setupPaging();
 
 extern "C" void main(uint64_t atags, uint64_t dataEnd) {
     end = dataEnd;
-    mmioBase = getMmioBaseFromVersion();
+    mmioBase = highStart + getMmioBaseFromVersion();
 
     Uart1::initialise(Uart1Pins::GPIO_30_31_32_33);
     Uart0::initialise(Uart0Pins::GPIO_14_15_16_17);
@@ -258,7 +270,7 @@ extern "C" void main(uint64_t atags, uint64_t dataEnd) {
         Uart0::write("Error calling mailbox tag\n");
     }
 
-    threadTest();
+//    threadTest();
 //    startBootstrap();
 
     Uart0::write("Waiting\n");

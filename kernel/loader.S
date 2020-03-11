@@ -68,6 +68,7 @@ set_stack:
     bl setupPaging
     mov x20, x0
 
+clear_bss:
     // clear bss
     ldr     x1, =__bss_start
     ldr     w2, =__bss_size
@@ -77,6 +78,12 @@ set_stack:
     cbnz    w2, 3b
 
 bss_cleared:
+    // Setup stack in high memory
+    ldr x1, =_start
+    mov x2, #0xFFFFFFFFC0000000
+    add x1, x1, x2
+    mov sp, x1
+
     // jump to C code, should not return
     mov x0, x19
     mov x1, x20

@@ -7,9 +7,16 @@ SECTIONS
     __start = .;
     __text_start = .;
 
-    .text ALIGN(4K) : AT(ADDR(.text))
+    .text.boot ALIGN(4K) : AT(ADDR(.text.boot))
     {
         KEEP(*(.text.boot))
+    }
+
+    . = 0xFFFFFFFFC0090000;
+    .text ALIGN(4K) : AT(ADDR(.text) - 0xFFFFFFFFC0000000)
+
+    /*.text ALIGN(4K) : AT(ADDR(.text))*/
+    {
         *(.text)
     }
     __text_end = .;
